@@ -1,14 +1,24 @@
-lsocket=/Users/wale/lsocket CD=. filter="*" {
+lsocket=~/lsocket CD=. filter="*" {
+ Makefile
  README.md
- cnet.c
- lsocket.c
- lsocketbuffer.c
- socket.c
- cnet.h
- np.h
- np_epoll.h
- np_select.h
- socket.h
- socket_define.h
- socket_platform.h
+ lib=lib {
+  socket.lua
+ }
+ src=src {
+  lsocket.c
+  lsocketbuffer.c
+  psocket.c
+  socket.c
+  np.h
+  np_epoll.h
+  np_select.h
+  psocket.h
+  socket.h
+  socket_define.h
+  socket_platform.h
+ }
+ test=test {
+  client.lua
+  server.lua
+ }
 }

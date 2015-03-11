@@ -1,6 +1,6 @@
-#include "net.h"
 #include "socket.h"
-#include "netpoll.h"
+#include "socket_platform.h"
+#include "np.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +18,7 @@
 #define LISTEN_BACKLOG 511
 #define RBUFFER_SZ 64
 
-#define NETERR(err) (err) != 0 ? (err) : NET_ERR_EOF;
+#define ERR(err) (err) != 0 ? (err) : LS_ERR_EOF;
 
 static const char *STRERROR[] = {
     "",
@@ -57,7 +57,7 @@ struct net {
     int max;
     int err;
     struct np_event  *i_events;
-    struct net_event *o_events; 
+    struct socket_event *o_events; 
     struct socket *sockets;
     struct socket *free_socket;
     struct socket *tail_socket;
@@ -156,7 +156,7 @@ _close_socket(struct net *self, struct socket *s) {
 }
 
 int
-net_close(struct net *self, int id, int force) {
+socket_close(struct net *self, int id, int force) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return 0;
     if (s->status == STATUS_INVALID)
@@ -171,7 +171,7 @@ net_close(struct net *self, int id, int force) {
 }
 
 int
-net_subscribe(struct net *self, int id, int read) {
+socket_subscribe(struct net *self, int id, int read) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return 1;
     int mask = 0;
@@ -194,7 +194,7 @@ net_create(int max) {
     self->max = max;
     self->err = 0;
     self->i_events = malloc(max*sizeof(struct np_event));
-    self->o_events = malloc(max*sizeof(struct net_event));
+    self->o_events = malloc(max*sizeof(struct socket_event));
     self->sockets = _alloc_sockets(max);
     self->free_socket = &self->sockets[0];
     self->tail_socket = &self->sockets[max-1];
@@ -231,15 +231,15 @@ _read_close(struct socket *s) {
             int err = _socket_geterror(s->fd);
             if (err == SEAGAIN) return 0;
             else if (err == SEINTR) continue;
-            else return NETERR(err);
+            else return ERR(err);
         } else if (n == 0) {
-            return NET_ERR_EOF;
+            return LS_ERR_EOF;
         } else return 0; // we not care data
     }
 }
 
 int
-net_read(struct net *self, int id, void **data) {
+socket_read(struct net *self, int id, void **data) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return -1;
     if (s->status == STATUS_HALFCLOSE) {
@@ -263,14 +263,14 @@ net_read(struct net *self, int id, void **data) {
             } else {
                 free(p);
                 _close_socket(self, s);
-                self->err = NETERR(e);
+                self->err = ERR(e);
                 return -1;
             }
         } else if (n == 0) {
             // zero indicates end of file
             free(p);
             _close_socket(self, s);
-            self->err = NET_ERR_EOF;
+            self->err = LS_ERR_EOF;
             return -1;
         } else {
             if (n == s->rbuffersz)
@@ -317,7 +317,7 @@ _send_buffer(struct net *self, struct socket *s) {
 }
 
 int 
-net_send(struct net* self, int id, void* data, int sz, struct net_event* event) {
+socket_send(struct net* self, int id, void* data, int sz, struct socket_event* event) {
     assert(sz > 0);
     struct socket* s = _socket(self, id);
     if (s == NULL) {
@@ -349,7 +349,7 @@ net_send(struct net* self, int id, void* data, int sz, struct net_event* event) 
         }
         s->sbuffersz += sz;
         if (s->sbuffersz > s->slimit) {
-            err = NET_ERR_WBUFOVER;
+            err = LS_ERR_WBUFOVER;
             goto errout;
         }
         struct sbuffer* p = malloc(sizeof(*p));
@@ -364,7 +364,7 @@ net_send(struct net* self, int id, void* data, int sz, struct net_event* event) 
     } else {
         s->sbuffersz += sz;
         if (s->sbuffersz > s->slimit) {
-            err = NET_ERR_WBUFOVER;
+            err = LS_ERR_WBUFOVER;
             goto errout;
         }
         struct sbuffer* p = malloc(sizeof(*p));
@@ -382,8 +382,8 @@ net_send(struct net* self, int id, void* data, int sz, struct net_event* event) 
 errout:
     free(data);
     event->id = s-self->sockets;
-    event->type = NETE_SOCKERR;
-    event->err = NETERR(err);
+    event->type = LS_ESOCKERR;
+    event->err = ERR(err);
     event->udata = s->udata;
     _close_socket(self, s);
     return 1;
@@ -412,7 +412,7 @@ _accept(struct net *self, struct socket *lis) {
 }
 
 int
-net_listen(struct net *self, const char *addr, int port, int udata) {    
+socket_listen(struct net *self, const char *addr, int port, int udata) {    
     struct addrinfo hints;
     struct addrinfo *result, *rp;
     memset(&hints, 0, sizeof(hints));
@@ -423,7 +423,7 @@ net_listen(struct net *self, const char *addr, int port, int udata) {
     char sport[16];
     snprintf(sport, sizeof(sport), "%u", port);
     if (getaddrinfo(addr, sport, &hints, &result)) {
-        self->err = NET_ERR_LISTEN;
+        self->err = LS_ERR_LISTEN;
         return -1;
     }
     int fd = -1;
@@ -449,7 +449,7 @@ net_listen(struct net *self, const char *addr, int port, int udata) {
     }
     if (fd == -1) {
         if (self->err == 0)
-            self->err = NET_ERR_LISTEN;
+            self->err = LS_ERR_LISTEN;
         freeaddrinfo(result);
         return -1;
     } 
@@ -464,7 +464,7 @@ net_listen(struct net *self, const char *addr, int port, int udata) {
     struct socket *s;
     s = _create_socket(self, fd, 0, udata);
     if (s == NULL) {
-        self->err = NET_ERR_CREATESOCK;
+        self->err = LS_ERR_CREATESOCK;
         _socket_close(fd);
         return -1;
     }
@@ -496,7 +496,7 @@ _onconnect(struct net *self, struct socket *s) {
 }
 
 int
-net_connect(struct net *self, const char *addr, int port, int block, int udata) {
+socket_connect(struct net *self, const char *addr, int port, int block, int udata) {
     self->err = 0;
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -508,7 +508,7 @@ net_connect(struct net *self, const char *addr, int port, int block, int udata) 
     char sport[16];
     snprintf(sport, sizeof(sport), "%u", port);
     if (getaddrinfo(addr, sport, &hints, &result)) {
-        self->err = NET_ERR_CONNECT;
+        self->err = LS_ERR_CONNECT;
         return -1;
     }
     int fd = -1, status;
@@ -550,7 +550,7 @@ net_connect(struct net *self, const char *addr, int port, int block, int udata) 
     }
     if (fd == -1) {
         if (self->err == 0)
-            self->err = NET_ERR_CONNECT;
+            self->err = LS_ERR_CONNECT;
         freeaddrinfo(result);
         return -1;
     } 
@@ -560,7 +560,7 @@ net_connect(struct net *self, const char *addr, int port, int block, int udata) 
     struct socket *s;
     s = _create_socket(self, fd, 0, udata);
     if (s == NULL) {
-        self->err = NET_ERR_CREATESOCK;
+        self->err = LS_ERR_CREATESOCK;
         _socket_close(fd);
         return -1;
     }
@@ -571,14 +571,14 @@ net_connect(struct net *self, const char *addr, int port, int block, int udata) 
             _close_socket(self, s);
             return -1;
         } 
-        self->err = NET_CONNECTING;
+        self->err = LS_CONNECTING;
     }
     return s - self->sockets;
 }
 
 int
-net_poll(struct net *self, int timeout, struct net_event **events) {
-    struct net_event *oe = self->o_events;;
+socket_poll(struct net *self, int timeout, struct socket_event **events) {
+    struct socket_event *oe = self->o_events;;
     int n = np_poll(&self->np, self->i_events, self->max, timeout);
     int i;
     for (i=0; i<n; ++i) {
@@ -590,7 +590,7 @@ net_poll(struct net *self, int timeout, struct net_event **events) {
             struct socket *lis = s;
             s = _accept(self, lis);
             if (s) {
-                oe->type = NETE_ACCEPT;
+                oe->type = LS_EACCEPT;
                 oe->id = s-self->sockets; 
                 oe->udata = s->udata;
                 oe->listenid = lis-self->sockets;
@@ -601,9 +601,9 @@ net_poll(struct net *self, int timeout, struct net_event **events) {
                 oe->id = s-self->sockets;
                 oe->udata = s->udata;
                 oe->err = _onconnect(self, s);
-                if (oe->err) oe->type = NETE_CONNERR;
-                else if (ie->read) oe->type = NETE_CONN_THEN_READ;
-                else oe->type = NETE_CONNECT;
+                if (oe->err) oe->type = LS_ECONNERR;
+                else if (ie->read) oe->type = LS_ECONN_THEN_READ;
+                else oe->type = LS_ECONNECT;
                 oe++;
             }
             break;
@@ -612,7 +612,7 @@ net_poll(struct net *self, int timeout, struct net_event **events) {
             if (ie->write) {
                 int err = _send_buffer(self, s);
                 if (err) {
-                    oe->type = NETE_SOCKERR; 
+                    oe->type = LS_ESOCKERR; 
                     oe->id = s-self->sockets;
                     oe->udata = s->udata;
                     oe->err = err;
@@ -622,7 +622,7 @@ net_poll(struct net *self, int timeout, struct net_event **events) {
                 }
                 if (s->status == STATUS_HALFCLOSE &&
                     s->head == NULL) {
-                    oe->type = NETE_WRIDONECLOSE;
+                    oe->type = LS_EWRIDONECLOSE;
                     oe->id = s-self->sockets;
                     oe->udata = s->udata;
                     oe++;
@@ -633,7 +633,7 @@ net_poll(struct net *self, int timeout, struct net_event **events) {
             if (ie->read) {
                 oe->id = s-self->sockets;
                 oe->udata = s->udata;
-                oe->type = NETE_READ;
+                oe->type = LS_EREAD;
                 oe++;
             }
             break;
@@ -644,7 +644,7 @@ net_poll(struct net *self, int timeout, struct net_event **events) {
 }
 
 int 
-net_address(struct net *self, int id, struct net_addr *addr) {
+socket_address(struct net *self, int id, struct socket_addr *addr) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return 1;
     struct sockaddr_in peer;
@@ -658,7 +658,7 @@ net_address(struct net *self, int id, struct net_addr *addr) {
 }
 
 int
-net_slimit(struct net *self, int id, int slimit) {
+socket_slimit(struct net *self, int id, int slimit) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return 1;
     if (slimit < 0) slimit = 0;
@@ -667,7 +667,7 @@ net_slimit(struct net *self, int id, int slimit) {
 }
 
 const char *
-net_error(struct net *self, int err) {
+socket_error(struct net *self, int err) {
     if (err <= 0) {
         err= -err;
         if (err<0 || err>=sizeof(STRERROR)/sizeof(STRERROR[0]))
@@ -679,6 +679,6 @@ net_error(struct net *self, int err) {
 }
 
 int
-net_lasterrno(struct net *self) {
+socket_lasterrno(struct net *self) {
     return self->err;
 }

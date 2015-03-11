@@ -1,4 +1,4 @@
-#include "cnet.h"
+#include "psocket.h"
 #include <lua.h>
 #include <lauxlib.h>
 #include <stdlib.h>
@@ -22,14 +22,14 @@ _traceback(lua_State *L) {
 }
 
 static void
-_dispatch(struct net_event *event) {
+_dispatch(struct socket_event *event) {
     assert(_GL);
     lua_State *L = _GL;
     lua_pushcfunction(L,_traceback);
     int trace = lua_gettop(L);
     lua_rawgetp(L,LUA_REGISTRYINDEX,_dispatch);
-    lua_pushinteger(L,event->id);
     lua_pushinteger(L,event->type);
+    lua_pushinteger(L,event->id);
     lua_pushinteger(L,event->err);
     int r = lua_pcall(L,3,0,trace);
     if (r != LUA_OK) {
@@ -49,7 +49,7 @@ linit(lua_State *L) {
     lua_rawgeti(L,LUA_REGISTRYINDEX,LUA_RIDX_MAINTHREAD);
     _GL = lua_tothread(L,-1);
 
-    if (cnet_init(cmax, _dispatch) == 0) {
+    if (psocket_init(cmax, _dispatch) == 0) {
         lua_pushboolean(L,1);
         return 1;
     } else {
@@ -61,21 +61,29 @@ linit(lua_State *L) {
 
 static int
 lfini(lua_State *L) {
-    cnet_fini();
+    psocket_fini();
     return 0;
+}
+
+static int
+lpoll(lua_State *L) {
+    int timeout = luaL_checkinteger(L,1);
+    int n = psocket_poll(timeout);
+    lua_pushinteger(L,n);
+    return 1;
 }
 
 static int
 llisten(lua_State *L) {
     const char *ip = luaL_checkstring(L, 1);
     int port = luaL_checkinteger(L, 2);
-    int id = cnet_listen(ip, port);
+    int id = psocket_listen(ip, port);
     if (id >= 0) { 
         lua_pushinteger(L, id); 
         return 1;
     } else {
         lua_pushnil(L);
-        lua_pushstring(L, SH_NETERR);
+        lua_pushstring(L, PSOCKET_ERR);
         return 2;
     }
 }
@@ -84,9 +92,9 @@ static int
 lconnect(lua_State *L) {
     const char *ip = luaL_checkstring(L, 1);
     int port = luaL_checkinteger(L, 2);
-    int id = cnet_connect(ip, port);
+    int id = psocket_connect(ip, port);
     if (id >= 0) {
-        if (cnet_lasterrno() == NET_CONNECTING) {
+        if (psocket_lasterrno() == LS_CONNECTING) {
             lua_pushinteger(L,id);
             lua_pushnil(L);
             lua_pushboolean(L,1);
@@ -97,27 +105,28 @@ lconnect(lua_State *L) {
         }
     } else {
         lua_pushnil(L);
-        lua_pushinteger(L,cnet_lasterrno());
+        lua_pushinteger(L,psocket_lasterrno());
         return 2;
     }
 }
 
 static int
-lrecv(lua_State *L) {
+lread(lua_State *L) {
     int id = luaL_checkinteger(L, 1);
     void *data;
-    int n = cnet_read(id, &data);
+    int n = psocket_read(id, &data);
     if (n > 0) {
         lua_pushlightuserdata(L, data);
         lua_pushinteger(L, n);
         return 2;
     } else if (n == 0) {
         lua_pushnil(L);
-        lua_pushinteger(L, 0);
-        return 2;
+        //lua_pushinteger(L, 0);
+        return 1;
     } else {
         lua_pushnil(L);
-        lua_pushinteger(L, -1);
+        //lua_pushinteger(L, -1);
+        lua_pushinteger(L,psocket_lasterrno());
         return 2;
     }
 }
@@ -151,7 +160,7 @@ lsend(lua_State *L) {
     default:
         return luaL_argerror(L, 2, "invalid type");
     }
-    int err = cnet_send(id,msg,sz);
+    int err = psocket_send(id,msg,sz);
     if (err != 0) lua_pushinteger(L,err);
     else lua_pushnil(L);
     return 1;
@@ -161,7 +170,7 @@ static int
 lclose(lua_State *L) {
     int id = luaL_checkinteger(L, 1);
     int force = lua_toboolean(L, 2);
-    int ok = cnet_close(id, force) == 0;
+    int ok = psocket_close(id, force) == 0;
     lua_pushboolean(L, ok);
     return 1;
 }
@@ -170,15 +179,15 @@ static int
 lreadenable(lua_State *L) {
     int id = luaL_checkinteger(L, 1);
     int enable = lua_toboolean(L, 2);
-    cnet_subscribe(id, enable);
+    psocket_subscribe(id, enable);
     return 0;
 }
 
 static int
 laddress(lua_State *L) {
-    struct net_addr addr;
+    struct socket_addr addr;
     int id = luaL_checkinteger(L, 1); 
-    if (!cnet_address(id, &addr)) {
+    if (!psocket_address(id, &addr)) {
         lua_pushstring(L, addr.ip);
         lua_pushinteger(L, addr.port);
         return 2;
@@ -192,17 +201,17 @@ static int
 lslimit(lua_State *L) {
     int id = luaL_checkinteger(L, 1);
     int slimit = luaL_checkinteger(L, 2);
-    cnet_slimit(id, slimit);
+    psocket_slimit(id, slimit);
     return 0;
 }
 
 static int
 lerror(lua_State *L) {
     if (lua_gettop(L) == 0)
-        lua_pushstring(L, SH_NETERR);
+        lua_pushstring(L, PSOCKET_ERR);
     else {
         int err = luaL_checkinteger(L, 1);
-        lua_pushstring(L, cnet_error(err));
+        lua_pushstring(L, psocket_error(err));
     }
     return 1;
 }
@@ -213,10 +222,11 @@ luaopen_socket_c(lua_State *L) {
     luaL_Reg l[] = {
         {"init", linit},
         {"fini", lfini},
+        {"poll", lpoll},
         {"listen", llisten},
         {"connect", lconnect},
         {"close", lclose},
-        {"recv", lrecv},
+        {"read", lread},
         {"send", lsend},
         {"readenable", lreadenable},
         {"address", laddress},

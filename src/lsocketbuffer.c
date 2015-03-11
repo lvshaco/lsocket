@@ -1,12 +1,11 @@
 #include <lua.h>
-//#include <lauxlib.h>
+#include <lauxlib.h>
 #include <stdlib.h>
-//#include <string.h>
-//#include <assert.h>
-//#include <stdio.h>
+#include <string.h>
+#include <assert.h>
 
 // socket buffer
-
+ 
 struct buffer_node {
     char *p;
     int sz;
