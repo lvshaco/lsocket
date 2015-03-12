@@ -1,14 +1,10 @@
-lsocket=~/lsocket CD=. filter="*" {
+lsocket=~/lsocket CD=. filter="*h *c *lua Make* README*" {
  Makefile
  README.md
  lib=lib {
   socket.lua
  }
  src=src {
-  lsocket.c
-  lsocketbuffer.c
-  psocket.c
-  socket.c
   np.h
   np_epoll.h
   np_select.h
@@ -16,6 +12,10 @@ lsocket=~/lsocket CD=. filter="*" {
   socket.h
   socket_define.h
   socket_platform.h
+  lsocket.c
+  lsocketbuffer.c
+  psocket.c
+  socket.c
  }
  test=test {
   client.lua

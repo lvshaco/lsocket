@@ -10,11 +10,7 @@
 #define LS_ECONNERR 3 
 #define LS_ESOCKERR 4
 #define LS_EWRIDONECLOSE 5
-//#define LS_EWRIDONE 5
 #define LS_ECONN_THEN_READ 6
-#define LS_ETIMEOUT 7
-#define LS_ELOGOUT 8
-#define LS_EREDISREPLY 9
 
 struct socket_event {
     int id;

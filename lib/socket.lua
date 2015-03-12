@@ -123,10 +123,7 @@ function socket.readenable(id, enable)
     assert(s) 
     c.readenable(id, enable)
     if enable then     
-        -- check buffer NULL
         s.buffer = socketbuffer()
-    else
-        --free?
     end
 end
 
