@@ -7,6 +7,6 @@ make
 
 test
 -----
-cd test
-lua server.lua
-lua client.lua
+* cd test
+* lua server.lua
+* lua client.lua
