@@ -1,7 +1,14 @@
 .PHONY: all socket.so socketbuffer.so clean cleanall test
 
-CFLAGS=-g -Wall -Werror -fPIC
+CFLAGS=-g -Wall -Werror
 SHARED=-shared
+
+UNAME=$(shell uname)
+SYS=$(if $(filter MINGW%, $(UNAME)), mingw, undefined)
+
+ifeq ($(SYS), mingw) 
+	LDFLAGS += -lws2_32 -llua
+endif
 
 all: socket.so socketbuffer.so
 socket.so: src/lsocket.c src/psocket.c src/socket.c

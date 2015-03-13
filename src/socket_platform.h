@@ -123,6 +123,8 @@ _socket_geterror(socket_t fd) {
     return err;
 }
 
+#define inet_ntop(a,b,c,d)
+
 #endif
 
 #endif
