@@ -1,7 +1,7 @@
 local socket = require "socket"
 local tbl = require "tbl"
 
-assert(socket.init(10))
+assert(socket.init(1))
 
 local function fork(f,...)
     local co = coroutine.create(f)

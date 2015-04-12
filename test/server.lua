@@ -48,7 +48,7 @@ local function fork(f,...)
     assert(coroutine.resume(co,...))
 end
 
-assert(socket.init(10))
+assert(socket.init(2))
 
 local lid = assert(socket.listen("127.0.0.1", 1234))
 socket.start(lid, function(id)
