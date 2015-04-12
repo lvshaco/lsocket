@@ -28,7 +28,7 @@ local function send(fmt, ...)
     assert(#s<256)
     s = string.char(#s)..s
     assert(socket.send(g_sid, s))
-    tbl.print(t, 'send:')
+    tbl.print(t, 'send:'..#s)
 end
 
 

@@ -123,7 +123,7 @@ function socket.readenable(id, enable)
     local s = socket_pool[id]
     assert(s) 
     c.readenable(id, enable)
-    if enable then     
+    if enable and not s.buffer then     
         s.buffer = socketbuffer()
     end
 end
