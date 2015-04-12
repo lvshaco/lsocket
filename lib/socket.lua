@@ -65,6 +65,7 @@ end
 event[LS_ECONNERR] = function(id, err)
     local s = socket_pool[id]
     assert(s.id == id)
+    disconnect(id, true)
     wakeup(s.co, nil, c.error(err))
 end
 
@@ -83,13 +84,13 @@ end
 
 function socket.connect(ip, port)
     local id, err, conning = c.connect(ip, port)
-    if id >= 0 then
+    if id then
         socket.start(id)
         if conning then
             local s = socket_pool[id]
             return suspend(s)
         else return id end
-    else return nil, err
+    else return nil, c.error(err)
     end
 end
 

@@ -1,8 +1,8 @@
 .PHONY: all socket.so socketbuffer.so clean cleanall test
 
-CFLAGS=-g -Wall -Werror
-SHARED=-shared
-
+CFLAGS=-g -Wall -Werror -DLUA_COMPAT_APIINTCASTS
+#SHARED=-shared -fPIC
+SHARED=-fPIC -dynamiclib -Wl,-undefined,dynamic_lookup
 UNAME=$(shell uname)
 SYS=$(if $(filter MINGW%, $(UNAME)), mingw, undefined)
 
@@ -12,9 +12,9 @@ endif
 
 all: socket.so socketbuffer.so
 socket.so: src/lsocket.c src/psocket.c src/socket.c
-	gcc $(CFLAGS) $(SHARED) -o $@ $^ 
+	gcc $(CFLAGS) $(SHARED) -o $@ $^ -I/usr/local/include #-llua
 socketbuffer.so: src/lsocketbuffer.c
-	gcc $(CFLAGS) $(SHARED) -o $@ $^
+	gcc $(CFLAGS) $(SHARED) -o $@ $^ -I/usr/local/include #-llua
 test:
 	cp socket.so socketbuffer.so lib/socket.lua test
 clean:
