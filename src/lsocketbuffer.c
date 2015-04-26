@@ -6,7 +6,6 @@
 #include <stdint.h>
 
 // socket buffer
- 
 struct buffer_node {
     char *p;
     int sz;
@@ -203,7 +202,7 @@ readhead(struct lua_State *L,
             head |= ((uint8_t*)current->p)[o]<<((i++)*8); 
             if (i>=n) {
                 freebuffer(sb, current, o+1);
-                lua_pushunsigned(L, head);
+                lua_pushinteger(L, head);
                 return 1;
             }
         }
@@ -306,7 +305,7 @@ lpop(struct lua_State *L) {
                 return luaL_argerror(L, 2, "invalid mode");
             }}
         case LUA_TNUMBER: {
-            uint32_t n = luaL_checkunsigned(L, 2);
+            uint32_t n = luaL_checkinteger(L, 2);
             return readn(L, sb, n);
             } 
         default:
@@ -319,7 +318,7 @@ static int
 lpopbytes(struct lua_State *L) {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     struct socket_buffer *sb = lua_touserdata(L, 1); 
-    uint32_t n = luaL_checkunsigned(L, 2);
+    uint32_t n = luaL_checkinteger(L, 2);
     return readnp(L, sb, n);
 }
 

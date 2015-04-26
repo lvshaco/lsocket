@@ -121,11 +121,9 @@ lread(lua_State *L) {
         return 2;
     } else if (n == 0) {
         lua_pushnil(L);
-        //lua_pushinteger(L, 0);
         return 1;
     } else {
         lua_pushnil(L);
-        //lua_pushinteger(L, -1);
         lua_pushinteger(L,psocket_lasterrno());
         return 2;
     }
@@ -134,7 +132,7 @@ lread(lua_State *L) {
 static int
 lsend(lua_State *L) {
     int id = luaL_checkinteger(L,1);
-    void *msg=NULL;
+    void *msg;
     int sz;
     int type = lua_type(L,2);
     switch (type) {
