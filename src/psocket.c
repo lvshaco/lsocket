@@ -71,6 +71,6 @@ int psocket_close(int id, int force) { return socket_close(N,id,force);}
 int psocket_subscribe(int id, int read) { return socket_subscribe(N,id,read);}
 int psocket_read(int id, void **data) { return socket_read(N,id,data); }
 int psocket_address(int id, struct socket_addr *addr) { return socket_address(N,id,addr); }
-int psocket_slimit(int id, int slimit) { return socket_slimit(N,id,slimit); }
+int psocket_limit(int id, int slimit, int rlimit) { return socket_limit(N,id,slimit, rlimit); }
 int psocket_lasterrno() { return socket_lasterrno(N); }
 const char *psocket_error(int err) { return socket_error(N, err); }

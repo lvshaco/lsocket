@@ -50,6 +50,7 @@ struct socket {
     int sbuffersz;
     int rbuffersz;
     int slimit; 
+    int rlimit;
 };
 
 struct net {
@@ -104,6 +105,7 @@ _alloc_sockets(int max) {
         s[i].head = NULL;
         s[i].tail = NULL;
         s[i].slimit = 0;
+        s[i].rlimit = 0;
         s[i].sbuffersz = 0;
     }
     s[max-1].fd = -1;
@@ -278,10 +280,12 @@ socket_read(struct net *self, int id, void **data) {
             self->err = LS_ERR_EOF;
             return -1;
         } else {
-            //if (n == s->rbuffersz)
-                //s->rbuffersz <<= 1;
-            //else if (s->rbuffersz > RBUFFER_SZ && n < (s->rbuffersz<<1))
-                //s->rbuffersz >>= 1;
+            if (s->rlimit == 0) {
+                if (n == s->rbuffersz)
+                    s->rbuffersz <<= 1;
+                else if (s->rbuffersz > RBUFFER_SZ && n < (s->rbuffersz<<1))
+                    s->rbuffersz >>= 1;
+            } 
             *data = p;
             return n;
         } 
@@ -663,11 +667,20 @@ socket_address(struct net *self, int id, struct socket_addr *addr) {
 }
 
 int
-socket_slimit(struct net *self, int id, int slimit) {
+socket_limit(struct net *self, int id, int slimit, int rlimit) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return 1;
-    if (slimit < 0) slimit = 0;
-    s->slimit = slimit;
+    if (slimit <= 0) {
+        s->slimit = INT_MAX;
+    } else {
+        s->slimit = slimit;
+    }
+    if (rlimit <= 0) {
+        s->rlimit = 0;
+    } else {
+        s->rlimit = rlimit;
+        s->rbuffersz = rlimit;
+    }
     return 0;
 }
 

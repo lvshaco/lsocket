@@ -196,10 +196,11 @@ laddress(lua_State *L) {
 }
 
 static int
-lslimit(lua_State *L) {
+llimit(lua_State *L) {
     int id = luaL_checkinteger(L, 1);
     int slimit = luaL_checkinteger(L, 2);
-    psocket_slimit(id, slimit);
+    int rlimit = luaL_checkinteger(L, 3);
+    psocket_limit(id, slimit, rlimit);
     return 0;
 }
 
@@ -228,7 +229,7 @@ luaopen_socket_c(lua_State *L) {
         {"send", lsend},
         {"readenable", lreadenable},
         {"address", laddress},
-        {"slimit", lslimit}, 
+        {"limit", llimit}, 
         {"error", lerror},
         {NULL, NULL},
     };

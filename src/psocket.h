@@ -16,7 +16,7 @@ int psocket_poll(int timeout);
 int psocket_send(int id, void *data, int sz);
 int psocket_read(int id, void **data);
 int psocket_address(int id, struct socket_addr *addr);
-int psocket_slimit(int id, int slimit);
+int psocket_limit(int id, int slimit, int rlimit);
 int psocket_lasterrno();
 const char *psocket_error(int err);
 #define PSOCKET_ERR psocket_error(psocket_lasterrno())
