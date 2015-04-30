@@ -67,7 +67,12 @@ static inline struct socket *
 _socket(struct net *self, int id) {
     assert(id>=0 && id<self->max);
     struct socket *s = &self->sockets[id];
-    return s->status != STATUS_INVALID ? s : NULL;
+    if (s->status != STATUS_INVALID)
+        return s;
+    else {
+        self->err = LS_ERR_NOSOCK;
+        return NULL;
+    }
 }
 
 static int
@@ -273,10 +278,10 @@ socket_read(struct net *self, int id, void **data) {
             self->err = LS_ERR_EOF;
             return -1;
         } else {
-            if (n == s->rbuffersz)
-                s->rbuffersz <<= 1;
-            else if (s->rbuffersz > RBUFFER_SZ && n < (s->rbuffersz<<1))
-                s->rbuffersz >>= 1;
+            //if (n == s->rbuffersz)
+                //s->rbuffersz <<= 1;
+            //else if (s->rbuffersz > RBUFFER_SZ && n < (s->rbuffersz<<1))
+                //s->rbuffersz >>= 1;
             *data = p;
             return n;
         } 
