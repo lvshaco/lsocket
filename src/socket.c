@@ -1,3 +1,6 @@
+#include "sh_log.h"
+//#define sh_info
+
 #include "socket.h"
 #include "socket_platform.h"
 #include "np.h"
@@ -404,8 +407,9 @@ _accept(struct net *self, struct socket *lis) {
     struct sockaddr_in peer;
     socklen_t l = sizeof(peer);
     socket_t fd = accept(lis->fd, (struct sockaddr*)&peer, &l);
-    if (fd < 0)
+    if (fd < 0) {
         return NULL;
+    }
     s = _create_socket(self, fd, lis->slimit, lis->udata);
     if (s == NULL) {
         _socket_close(fd);
@@ -587,7 +591,7 @@ socket_connect(struct net *self, const char *addr, int port, int block, int udat
 
 int
 socket_poll(struct net *self, int timeout, struct socket_event **events) {
-    struct socket_event *oe = self->o_events;;
+    struct socket_event *oe = self->o_events;
     int n = np_poll(&self->np, self->i_events, self->max, timeout);
     int i;
     for (i=0; i<n; ++i) {
@@ -606,15 +610,13 @@ socket_poll(struct net *self, int timeout, struct socket_event **events) {
                 oe++;
             }} break;
         case STATUS_CONNECTING:
-            if (ie->write) {
-                oe->id = s-self->sockets;
-                oe->udata = s->udata;
-                oe->err = _onconnect(self, s);
-                if (oe->err) oe->type = LS_ECONNERR;
-                else if (ie->read) oe->type = LS_ECONN_THEN_READ;
-                else oe->type = LS_ECONNECT;
-                oe++;
-            }
+            oe->id = s-self->sockets;
+            oe->udata = s->udata;
+            oe->err = _onconnect(self, s);
+            if (oe->err) oe->type = LS_ECONNERR;
+            else if (ie->read) oe->type = LS_ECONN_THEN_READ;
+            else oe->type = LS_ECONNECT;
+            oe++;
             break;
         case STATUS_CONNECTED:
         case STATUS_HALFCLOSE:
