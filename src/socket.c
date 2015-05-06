@@ -1,6 +1,3 @@
-#include "sh_log.h"
-//#define sh_info
-
 #include "socket.h"
 #include "socket_platform.h"
 #include "np.h"
