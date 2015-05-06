@@ -1,11 +1,6 @@
 local c = require "socket.c"
-local socketbuffer_c = require "socketbuffer.c"
+local socketbuffer = require "socketbuffer.c"
 local coroutine = coroutine
-
-local socketbuffer = function()
-    local self = socketbuffer_c.new()
-    return debug.setmetatable(self, {__index = socketbuffer_c})
-end
 
 local socket_pool = {}
 
@@ -124,7 +119,7 @@ function socket.readenable(id, enable)
     assert(s) 
     c.readenable(id, enable)
     if enable and not s.buffer then     
-        s.buffer = socketbuffer()
+        s.buffer = socketbuffer.new()
     end
 end
 
