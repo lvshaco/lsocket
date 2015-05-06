@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <stdint.h>
 
+#define METANAME "SBUF*"
+
 // socket buffer
 struct buffer_node {
     char *p;
@@ -20,12 +22,26 @@ struct socket_buffer {
 };
 
 static int
+lfree(struct lua_State *L) {
+    luaL_checktype(L, 1, LUA_TUSERDATA);
+    struct socket_buffer *sb = lua_touserdata(L, 1);
+    while (sb->head) {
+        struct buffer_node *next = sb->head->next;
+        free(sb->head->p);
+        free(sb->head);
+        sb->head = next;
+    }
+    return 0;
+}
+
+static int
 lnew(struct lua_State *L) {
     struct socket_buffer *sb = lua_newuserdata(L, sizeof(*sb));
     sb->size = 0;
     sb->offset = 0;
     sb->head = NULL;
     sb->tail = NULL;
+    luaL_setmetatable(L, METANAME);
     return 1;
 }
 
@@ -330,6 +346,21 @@ lfreebytes(struct lua_State *L) {
     return 0;
 }
 
+static void
+createmeta(struct lua_State *L) {
+    luaL_Reg l[] = {
+        {"push", lpush},
+        {"pop", lpop},
+        {"__gc", lfree},
+        {NULL, NULL},
+    };
+    luaL_newmetatable(L, METANAME);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "__index");
+    luaL_setfuncs(L, l, 0);
+    lua_pop(L, 1);
+}
+
 int
 luaopen_socketbuffer_c(lua_State *L) {
 	luaL_checkversion(L);
@@ -342,5 +373,6 @@ luaopen_socketbuffer_c(lua_State *L) {
         {NULL, NULL},
     };
 	luaL_newlib(L, l);
+    createmeta(L);
 	return 1;
 }
