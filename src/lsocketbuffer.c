@@ -351,6 +351,8 @@ createmeta(struct lua_State *L) {
     luaL_Reg l[] = {
         {"push", lpush},
         {"pop", lpop},
+        {"popbytes", lpopbytes},
+        {"freebytes", lfreebytes },
         {"__gc", lfree},
         {NULL, NULL},
     };

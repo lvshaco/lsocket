@@ -22,5 +22,6 @@ int socket_address(struct net *self, int id, struct socket_addr *addr);
 int socket_limit(struct net *self, int id, int slimit, int rlimit);
 int socket_lasterrno(struct net *self);
 const char *socket_error(struct net *self, int err);
+int socket_fd(struct net *self, int id);
 
 #endif

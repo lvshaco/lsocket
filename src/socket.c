@@ -699,3 +699,10 @@ int
 socket_lasterrno(struct net *self) {
     return self->err;
 }
+
+int 
+socket_fd(struct net *self, int id) {
+    struct socket *s = _socket(self, id);
+    if (s) return s->fd;
+    return SOCKET_INVALID;
+}
