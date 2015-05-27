@@ -1,3 +1,4 @@
+#include "alloc.h"
 #include <lua.h>
 #include <lauxlib.h>
 #include <stdlib.h>
@@ -27,8 +28,8 @@ lfree(struct lua_State *L) {
     struct socket_buffer *sb = lua_touserdata(L, 1);
     while (sb->head) {
         struct buffer_node *next = sb->head->next;
-        free(sb->head->p);
-        free(sb->head);
+        sh_free(sb->head->p);
+        sh_free(sb->head);
         sb->head = next;
     }
     return 0;
@@ -55,7 +56,7 @@ lpush(struct lua_State *L) {
     if (!p || sz <= 0) {
         return 0;
     }
-    struct buffer_node *node = malloc(sizeof(*node));
+    struct buffer_node *node = sh_malloc(sizeof(*node));
     node->p = p;
     node->sz = sz;
     node->next = NULL;
@@ -75,7 +76,7 @@ static void
 pushpackp(struct lua_State *L, 
          struct socket_buffer *sb, int n,
          struct buffer_node *node, int end) {
-    char *pack = malloc(n);
+    char *pack = sh_malloc(n);
     char *p = pack;
     struct buffer_node *current = sb->head;
     int offset = sb->offset, diff;
@@ -122,8 +123,8 @@ freebuffer(struct socket_buffer *sb,
                 sb->head = sb->head->next;
                 sb->size -= node->sz;
                 sb->offset = 0;
-                free(node->p);
-                free(node);
+                sh_free(node->p);
+                sh_free(node);
             } else {
                 sb->size -= end;
                 sb->offset = end;
@@ -133,8 +134,8 @@ freebuffer(struct socket_buffer *sb,
             tmp = sb->head;
             sb->head = sb->head->next;
             sb->size -= tmp->sz;
-            free(tmp->p);
-            free(tmp);
+            sh_free(tmp->p);
+            sh_free(tmp);
         }
     }
 }
@@ -342,7 +343,7 @@ static int
 lfreebytes(struct lua_State *L) {
     luaL_checktype(L,1,LUA_TLIGHTUSERDATA);
     void *p = lua_touserdata(L,1);
-    free(p);
+    sh_free(p);
     return 0;
 }
 

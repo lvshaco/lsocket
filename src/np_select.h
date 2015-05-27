@@ -23,7 +23,7 @@ np_init(struct np_state* np, int max) {
     while (cap < max)
         cap *= 2;
     np->cap = cap; 
-    np->ud = malloc(sizeof(void*) * cap);
+    np->ud = sh_malloc(sizeof(void*) * cap);
     memset(np->ud, 0, sizeof(void*) * cap);
     np->maxfd = -1;
     FD_ZERO(&np->rfds);
@@ -36,7 +36,7 @@ np_fini(struct np_state* np) {
     FD_ZERO(&np->rfds);
     FD_ZERO(&np->wfds);
     np->maxfd = -1;
-    free(np->ud);
+    sh_free(np->ud);
     np->ud = NULL;
     np->maxfd = 0;
 }
@@ -46,7 +46,7 @@ _grow(struct np_state* np, int maxfd) {
     int cap = np->cap;
     while (cap <= maxfd)
         cap *= 2;
-    np->ud = realloc(np->ud, sizeof(void*) * cap);
+    np->ud = sh_realloc(np->ud, sizeof(void*) * cap);
     memset(np->ud + np->cap, 0, sizeof(void*) * (cap - np->cap));
     np->cap = cap;
 }
