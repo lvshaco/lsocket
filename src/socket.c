@@ -408,6 +408,7 @@ _accept(struct net *self, struct socket *lis) {
     if (fd < 0) {
         return NULL;
     }
+    _socket_keepalive(fd);
     s = _create_socket(self, fd, lis->slimit, lis->udata);
     if (s == NULL) {
         _socket_close(fd);
@@ -528,9 +529,15 @@ socket_connect(struct net *self, const char *addr, int port, int block, int udat
         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (fd == -1)
             continue;
+        if (_socket_keepalive(fd) != 0) {
+            self->err = _socket_error;
+            _socket_close(fd);
+            return -1;
+        }
         if (!block)
             if (_socket_nonblocking(fd) == -1) {
                 self->err = _socket_error;
+                _socket_close(fd);
                 return -1;
             }
         if (connect(fd, rp->ai_addr, rp->ai_addrlen) == -1) {

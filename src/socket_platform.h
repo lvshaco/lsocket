@@ -56,6 +56,12 @@ static inline int _socket_geterror(socket_t fd);
 #define _socket_read(fd, buf, sz)  recv(fd, buf, sz, 0)
 #endif
 
+static inline int
+_socket_keepalive(socket_t fd) {
+    int keepalive = 1;
+    return setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive , sizeof(keepalive));
+}
+
 // util function
 #ifndef WIN32
 static inline int
