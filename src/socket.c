@@ -179,7 +179,7 @@ socket_close(struct net *self, int id, int force) {
 }
 
 int
-socket_subscribe(struct net *self, int id, int read) {
+socket_enableread(struct net *self, int id, int read) {
     struct socket *s = _socket(self, id);
     if (s == NULL) return 1;
     int mask = 0;
