@@ -22,14 +22,14 @@ np_init(struct np_state* np, int max) {
     if (fcntl(epoll_fd, F_SETFD, flag | FD_CLOEXEC))
         return 1;
     np->epoll_fd = epoll_fd;
-    np->ev = sh_malloc(sizeof(struct epoll_event) * max);
+    np->ev = malloc(sizeof(struct epoll_event) * max);
     return 0;
 }
 
 static void
 np_fini(struct np_state* np) {
     if (np->ev) {
-        sh_free(np->ev);
+        free(np->ev);
         np->ev = NULL;
     }
     if (np->epoll_fd != -1) {

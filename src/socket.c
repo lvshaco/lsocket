@@ -1,5 +1,5 @@
-#include "socket.h"
 #include "alloc.h"
+#include "socket.h"
 #include "socket_platform.h"
 #include "np.h"
 #include <assert.h>
@@ -97,7 +97,7 @@ static struct socket*
 _alloc_sockets(int max) {
     assert(max > 0);
     int i;
-    struct socket *s = sh_malloc(max*sizeof(struct socket));
+    struct socket *s = malloc(max*sizeof(struct socket));
     for (i=0; i<max; ++i) {
         s[i].fd = i+1;
         s[i].status = STATUS_INVALID;
@@ -148,8 +148,8 @@ _close_socket(struct net *self, struct socket *s) {
     while (s->head) {
         struct sbuffer *p = s->head;
         s->head = s->head->next;
-        sh_free(p->begin);
-        sh_free(p);
+        free(p->begin);
+        free(p);
     }
     s->tail = NULL;
     s->sbuffersz = 0;
@@ -194,15 +194,15 @@ struct net*
 net_create(int max) {
     if (max <= 0)
         max = 1;
-    struct net *self = sh_malloc(sizeof(struct net));
+    struct net *self = malloc(sizeof(struct net));
     if (np_init(&self->np, max)) {
-        sh_free(self);
+        free(self);
         return NULL;
     }
     self->max = max;
     self->err = 0;
-    self->i_events = sh_malloc(max*sizeof(struct np_event));
-    self->o_events = sh_malloc(max*sizeof(struct socket_event));
+    self->i_events = malloc(max*sizeof(struct np_event));
+    self->o_events = malloc(max*sizeof(struct socket_event));
     self->sockets = _alloc_sockets(max);
     self->free_socket = &self->sockets[0];
     self->tail_socket = &self->sockets[max-1];
@@ -221,13 +221,13 @@ net_free(struct net *self) {
             _close_socket(self, s);
         }
     }
-    sh_free(self->sockets);
+    free(self->sockets);
     self->free_socket = NULL;
     self->tail_socket = NULL;
-    sh_free(self->i_events);
-    sh_free(self->o_events);
+    free(self->i_events);
+    free(self->o_events);
     np_fini(&self->np);
-    sh_free(self);
+    free(self);
 }
 
 static int
@@ -258,25 +258,25 @@ socket_read(struct net *self, int id, void **data) {
         } else return 0;
     }
     int sz = s->rbuffersz;
-    void *p = sh_malloc(sz);
+    void *p = malloc(sz);
     for (;;) {
         int n = _socket_read(s->fd, p, sz);
         if (n < 0) {
             int e = _socket_geterror(s->fd);
             if (e == SEAGAIN) {
-                sh_free(p);
+                free(p);
                 return 0;
             } else if (e == SEINTR) {
                 continue;
             } else {
-                sh_free(p);
+                free(p);
                 _close_socket(self, s);
                 self->err = ERR(e);
                 return -1;
             }
         } else if (n == 0) {
             // zero indicates end of file
-            sh_free(p);
+            free(p);
             _close_socket(self, s);
             self->err = LS_ERR_EOF;
             return -1;
@@ -318,8 +318,8 @@ _send_buffer(struct net *self, struct socket *s) {
             }
         }
         s->head = p->next;
-        sh_free(p->begin);
-        sh_free(p);
+        free(p->begin);
+        free(p);
     }
     if (s->head == NULL)
         _subscribe(self, s, s->mask & (~NP_WABLE));
@@ -331,11 +331,11 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
     assert(sz > 0);
     struct socket* s = _socket(self, id);
     if (s == NULL) {
-        sh_free(data);
+        free(data);
         return -1;
     }
     if (s->status == STATUS_HALFCLOSE) {
-        sh_free(data);
+        free(data);
         return -1; // do not send
     }
     int err;
@@ -343,7 +343,7 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
         char *ptr;
         int n = _socket_write(s->fd, data, sz);
         if (n >= sz) {
-            sh_free(data);
+            free(data);
             return 0;
         } else if (n >= 0) {
             ptr = (char*)data + n;
@@ -362,7 +362,7 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
             err = LS_ERR_WBUFOVER;
             goto errout;
         }
-        struct sbuffer* p = sh_malloc(sizeof(*p));
+        struct sbuffer* p = malloc(sizeof(*p));
         p->next = NULL;
         p->sz = sz;
         p->begin = data;
@@ -377,7 +377,7 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
             err = LS_ERR_WBUFOVER;
             goto errout;
         }
-        struct sbuffer* p = sh_malloc(sizeof(*p));
+        struct sbuffer* p = malloc(sizeof(*p));
         p->next = NULL;
         p->sz = sz;
         p->begin = data;
@@ -390,7 +390,7 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
         return 0;
     }
 errout:
-    sh_free(data);
+    free(data);
     event->id = s-self->sockets;
     event->type = LS_ESOCKERR;
     event->err = ERR(err);

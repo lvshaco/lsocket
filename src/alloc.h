@@ -3,16 +3,16 @@
 
 #ifdef USE_SHACO_MALLOC
 #include <stdlib.h>
-void *sh_malloc(size_t size);
-void *sh_realloc(void *ptr, size_t size);
-void *sh_calloc(size_t nmemb, size_t size);
-void  sh_free(void *ptr);
+void *shaco_malloc(size_t size);
+void *shaco_realloc(void *ptr, size_t size);
+void *shaco_calloc(size_t nmemb, size_t size);
+void  shaco_free(void *ptr);
+#define malloc shaco_malloc
+#define realloc shaco_realloc
+#define calloc shaco_calloc
+#define free shaco_free
 #else
 #include <stdlib.h>
-#define sh_malloc   malloc
-#define sh_realloc  realloc
-#define sh_calloc   calloc
-#define sh_free     free
 #endif
 
 #endif

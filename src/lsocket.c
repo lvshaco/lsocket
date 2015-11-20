@@ -1,5 +1,5 @@
-#include "psocket.h"
 #include "alloc.h"
+#include "psocket.h"
 #include <lua.h>
 #include <lauxlib.h>
 #include <stdlib.h>
@@ -153,7 +153,7 @@ lsend(lua_State *L) {
             return 1;
         }
         sz = end-start+1;
-        msg = sh_malloc(sz);
+        msg = malloc(sz);
         memcpy(msg, s+start-1, sz);
         break; }
     default:
