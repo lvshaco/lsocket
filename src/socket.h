@@ -11,6 +11,7 @@ struct socket_addr;
 struct net *net_create(int max);
 void net_free(struct net *self);
 
+int socket_bind(struct net *self, int fd, int udata);
 int socket_listen(struct net *self, const char *addr, int port, int udata);
 int socket_connect(struct net *self, const char *addr, int port, int block, int udata);
 int socket_close(struct net *self, int id, int force);

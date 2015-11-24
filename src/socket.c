@@ -15,6 +15,7 @@
 #define STATUS_HALFCLOSE   4
 #define STATUS_SUSPEND     5
 #define STATUS_OPENED      STATUS_LISTENING
+#define STATUS_BIND        6
 
 #define LISTEN_BACKLOG 511
 #define RBUFFER_SZ 64
@@ -141,7 +142,9 @@ static void
 _close_socket(struct net *self, struct socket *s) {
     if (s->fd < 0) return;
     _subscribe(self, s, 0);
-    _socket_close(s->fd);
+    if (s->status != STATUS_BIND) {
+        _socket_close(s->fd);
+    }
     s->fd = -1;
     s->status = STATUS_INVALID;
     s->udata = 0; 
@@ -399,6 +402,22 @@ errout:
     return 1;
 }
 
+int
+socket_bind(struct net *self, int fd, int udata) {
+    struct socket *s;
+    s = _create_socket(self, fd, 0, udata);
+    if (s == NULL) {
+        self->err = LS_ERR_CREATESOCK;
+        return -1;
+    }
+    if (_socket_nonblocking(fd) == -1) {
+        _close_socket(self, s);
+        return -1;
+    }
+    s->status = STATUS_BIND;
+    return s-self->sockets;
+}
+
 static struct socket *
 _accept(struct net *self, struct socket *lis) {
     struct socket *s;
@@ -623,8 +642,9 @@ socket_poll(struct net *self, int timeout, struct socket_event **events) {
             else oe->type = LS_ECONNECT;
             oe++;
             break;
-        case STATUS_CONNECTED:
-        case STATUS_HALFCLOSE:
+        case STATUS_INVALID:
+            break;
+        default: 
             if (ie->write) {
                 int err = _send_buffer(self, s);
                 if (err) {
