@@ -332,6 +332,34 @@ lpop(struct lua_State *L) {
 }
 
 static int
+ldetach(struct lua_State *L) {
+    luaL_checktype(L, 1, LUA_TUSERDATA);
+    struct socket_buffer *sb = lua_touserdata(L, 1); 
+    if (sb->size <= 0) {
+        lua_pushnil(L);
+        return 1;
+    } 
+    void *p = shaco_malloc(sb->size);
+    int diff = 0;
+    struct buffer_node *current = sb->head;
+    int offset = sb->offset;
+    while (current) {
+        assert(diff < sb->size);
+        memcpy(p+diff, current->p+offset, current->sz-offset);
+        diff += current->sz-offset;
+        current = current->next;
+        offset = 0;
+    }
+    assert(diff==sb->size);
+
+    freebuffer(sb, sb->tail, sb->size);
+
+    lua_pushlightuserdata(L,p);
+    lua_pushinteger(L,sb->size);
+    return 2;
+}
+
+static int
 lpopbytes(struct lua_State *L) {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     struct socket_buffer *sb = lua_touserdata(L, 1); 
@@ -352,6 +380,7 @@ createmeta(struct lua_State *L) {
     luaL_Reg l[] = {
         {"push", lpush},
         {"pop", lpop},
+        {"detach", ldetach },
         {"popbytes", lpopbytes},
         {"freebytes", lfreebytes },
         {"__gc", lfree},
