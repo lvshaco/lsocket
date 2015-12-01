@@ -193,6 +193,15 @@ socket_enableread(struct net *self, int id, int read) {
     return _subscribe(self, s, mask);
 }
 
+int 
+socket_udata(struct net *self, int id, int udata) {
+    struct socket *s = _socket(self, id);
+    if (s==NULL)
+        return 1;
+    s->udata = udata;
+    return 0;
+}
+
 struct net*
 net_create(int max) {
     if (max <= 0)

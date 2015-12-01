@@ -14,6 +14,7 @@ void net_free(struct net *self);
 int socket_bind(struct net *self, int fd, int udata);
 int socket_listen(struct net *self, const char *addr, int port, int udata);
 int socket_connect(struct net *self, const char *addr, int port, int block, int udata);
+int socket_udata(struct net *self, int id, int udata);
 int socket_close(struct net *self, int id, int force);
 int socket_enableread(struct net *self, int id, int read);
 int socket_poll(struct net *self, int timeout, struct socket_event **events);

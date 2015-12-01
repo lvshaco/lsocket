@@ -339,7 +339,8 @@ ldetach(struct lua_State *L) {
         lua_pushnil(L);
         return 1;
     } 
-    void *p = shaco_malloc(sb->size);
+    size_t buf_size = sb->size;
+    void *p = malloc(buf_size);
     int diff = 0;
     struct buffer_node *current = sb->head;
     int offset = sb->offset;
@@ -355,7 +356,7 @@ ldetach(struct lua_State *L) {
     freebuffer(sb, sb->tail, sb->size);
 
     lua_pushlightuserdata(L,p);
-    lua_pushinteger(L,sb->size);
+    lua_pushinteger(L,buf_size);
     return 2;
 }
 
