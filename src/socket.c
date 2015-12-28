@@ -36,6 +36,7 @@ static const char *STRERROR[] = {
     "net connecting",
     "ipc trunc",
     "recvmsg control type error",
+    "net error status",
 };
 
 struct sbuffer {
@@ -86,6 +87,7 @@ _socket(struct net *self, int id) {
 
 static int
 _subscribe(struct net *self, struct socket *s, int mask) {
+//fprintf(stderr, "pid=%d, socket subscribe:%d, mask=%d\n",(int)getpid(), (int)(s-self->sockets), mask);
     int result;
     if (mask == s->mask)
         return 0;
@@ -104,7 +106,9 @@ static struct socket*
 _alloc_sockets(int max) {
     assert(max > 0);
     int i;
-    struct socket *s = malloc(max*sizeof(struct socket)); for (i=0; i<max; ++i) { s[i].fd = i+1;
+    struct socket *s = malloc(max*sizeof(struct socket)); 
+    for (i=0; i<max; ++i) { 
+        s[i].fd = i+1;
         s[i].status = STATUS_INVALID;
         s[i].mask = 0;
         s[i].udata = -1;
@@ -123,7 +127,7 @@ _create_socket(struct net *self, socket_t fd, int slimit, int udata, int protoco
     assert(fd >= 0);
     if (protocol < LS_PROTOCOL_TCP || protocol > LS_PROTOCOL_IPC) {
         protocol = LS_PROTOCOL_TCP;
-    }
+    } 
     if (self->free_socket == NULL)
         return NULL;
     struct socket *s = self->free_socket;
@@ -133,6 +137,7 @@ _create_socket(struct net *self, socket_t fd, int slimit, int udata, int protoco
         self->free_socket = NULL;
     s->fd = fd;
     s->protocol = protocol;
+    fprintf(stderr, "create socket %d, protocol=%d\n", (int)(s-self->sockets), protocol);
     s->status = STATUS_SUSPEND;
     s->mask = 0; 
     s->udata = udata;
@@ -177,14 +182,14 @@ _close_socket(struct net *self, struct socket *s) {
 
 int
 socket_close(struct net *self, int id, int force) {
-    fprintf(stderr, "socket_close: %d\n", id);
+    //fprintf(stderr, "socket_close: %d\n", id);
     struct socket *s = _socket(self, id);
     if (s == NULL) return 0;
-    fprintf(stderr, "socket_close2: %d\n", id);
+    //fprintf(stderr, "socket_close2: %d\n", id);
     if (s->status == STATUS_INVALID)
         return 0;
     if (force || !s->head) {
-    fprintf(stderr, "socket_close3: %d\n", id);
+    //fprintf(stderr, "socket_close3: %d\n", id);
         _close_socket(self, s);
         return 0;
     } else {
@@ -283,17 +288,18 @@ _read(struct net *self, struct socket *s, void **data) {
     void *p = malloc(sz);
     for (;;) {
         int n = _socket_read(s->fd, p, sz);
+        //fprintf(stderr, "pid=%d, fd=%d, read :%d, %d\n", getpid(), s->fd, n, (int)(*(char*)p));
         if (n < 0) {
-            int e = _socket_geterror(s->fd);
-            if (e == SEAGAIN) {
+            int err = _socket_geterror(s->fd);
+            if (err == SEAGAIN) {
                 free(p);
                 return 0;
-            } else if (e == SEINTR) {
+            } else if (err == SEINTR) {
                 continue;
             } else {
                 free(p);
                 _close_socket(self, s);
-                self->err = ERR(e);
+                self->err = ERR(err);
                 return -1;
             }
         } else if (n == 0) {
@@ -316,13 +322,15 @@ _read(struct net *self, struct socket *s, void **data) {
 }
 
 static inline int
-_sendmsg(int fd, void *data, int size, int cfd) {
-    struct iovec iov[1];
+_sendfd(int fd, void *data, int sz, int cfd) {
+    char tmp[1] = {0};
+    if (data == NULL) {
+        data = tmp;
+    }
     struct msghdr msg;
     if (cfd < 0) {
         msg.msg_control = NULL;
         msg.msg_controllen = 0;
-        //fprintf(stderr, "-------sendmsg nofd=%d\n", cfd);
     } else {
         union {
             struct cmsghdr  cm;
@@ -332,27 +340,36 @@ _sendmsg(int fd, void *data, int size, int cfd) {
         msg.msg_control = (caddr_t)&cmsg;
         msg.msg_controllen = sizeof(cmsg);
         memset(&cmsg, 0, sizeof(cmsg));
-        
         cmsg.cm.cmsg_len = CMSG_LEN(sizeof(int));
         cmsg.cm.cmsg_level = SOL_SOCKET;
         cmsg.cm.cmsg_type = SCM_RIGHTS;
         *(int*)CMSG_DATA(&cmsg.cm) = cfd;
-        //fprintf(stderr, "-------sendmsg fd=%d\n", cfd);
     }
-    msg.msg_flags = 0;
-
+    struct iovec iov[1];
     iov[0].iov_base = data;
-    iov[0].iov_len = size;
+    iov[0].iov_len = sz;
+    msg.msg_iov = iov;
+    msg.msg_iovlen = 1;
 
     msg.msg_name = NULL;
     msg.msg_namelen = 0;
-    msg.msg_iov = iov;
-    msg.msg_iovlen = 1;
+
+    msg.msg_flags = 0;
     return sendmsg(fd, &msg, 0);
 }
 
-static int
-_recvmsg(struct net *self, struct socket *s, void **data) {
+// return -1 for error, or read size (0 no read)
+int
+socket_readfd(struct net *self, int id, void **data) {
+    fprintf(stderr, "socket_readfd:%d\n", id);
+    struct socket *s = _socket(self, id);
+    if (s == NULL) {
+        return -1;
+    }
+    if (s->protocol != LS_PROTOCOL_IPC) {
+        self->err = LS_ERR_STATUS;
+        return -1;
+    }
     union {
         struct cmsghdr  cm;
         char            space[CMSG_SPACE(sizeof(int))];
@@ -368,20 +385,21 @@ _recvmsg(struct net *self, struct socket *s, void **data) {
     msg.msg_iov = iov;
     msg.msg_iovlen = 1;
 
+    memset(&cmsg, 0, sizeof(cmsg));
     msg.msg_control = (caddr_t)&cmsg;
     msg.msg_controllen = sizeof(cmsg);
 
     for (;;) {
         int n = recvmsg(s->fd, &msg, 0);
+        fprintf(stderr, "recvmsg: fd=%d, n=%d\n", s->fd, n);
         if (n < 0) {
-            int e = _socket_geterror(s->fd);
-            if (e == SEAGAIN) {
-                return 0;
-            } else if (e == SEINTR) {
-                continue;
-            } else {
+            int err = _socket_geterror(s->fd);
+            switch (err) {
+            case SEAGAIN: return 0;
+            case SEINTR: continue;
+            default:
                 _close_socket(self, s);
-                self->err = ERR(e);
+                self->err = ERR(err);
                 return -1;
             }
         } else if (n==0) {
@@ -394,23 +412,23 @@ _recvmsg(struct net *self, struct socket *s, void **data) {
                 self->err = LS_ERR_TRUNC;
                 return -1;
             }
-            int cfd;
             if (cmsg.cm.cmsg_len == CMSG_LEN(sizeof(int))) {
                 if (cmsg.cm.cmsg_level != SOL_SOCKET || cmsg.cm.cmsg_type != SCM_RIGHTS) {
                     _close_socket(self, s);
                     self->err = LS_ERR_CMSGTYPE;
                     return -1;
                 }
-                cfd = *(int*)CMSG_DATA(&cmsg.cm);
+            //fprintf(stderr, "pid=%d, fd=%d -----recvmsg n=%d,=%d, cmsg_len=%d, cfd=%d\n", getpid(),s->fd,n, (int)tmp[0], cmsg.cm.cmsg_len, cfd);
+                char *p = malloc(n+sizeof(int));
+                *(int *)p = *(int*)CMSG_DATA(&cmsg.cm);
+                memcpy(p+4, self->recvmsg_buffer, n);
+                return n+sizeof(int);
             } else {
-                cfd = -1;
+            //fprintf(stderr, "pid=%d, fd=%d -----recvmsg n=%d,=%d, cmsg_len=%d, cfd=%d\n", getpid(),s->fd,n, (int)tmp[0], cmsg.cm.cmsg_len, cfd);
+                char *p = malloc(n);
+                memcpy(p, self->recvmsg_buffer, n);
+                return n;
             }
-            //fprintf(stderr, "-----recvmsg n=%d, cmsg_len=%d, cfd=%d\n", n, cmsg.cm.cmsg_len, cfd);
-            char *p = malloc(n+sizeof(int));
-            *(int*)p = cfd; 
-            memcpy(p+sizeof(int), self->recvmsg_buffer, n);
-            *data = p;
-            return n+sizeof(int);
         }
     }
 }
@@ -422,9 +440,8 @@ socket_read(struct net *self, int id, void **data) {
         return -1;
     if (s->protocol == LS_PROTOCOL_TCP) {
         return _read(self, s, data);
-    } else {
-        return _recvmsg(self, s, data);
-    }
+    } else
+        return -1;
 }
 
 int
@@ -438,8 +455,6 @@ _send_buffer_tcp(struct net *self, struct socket *s) {
                 if (err == SEAGAIN) return 0;
                 else if (err == SEINTR) continue;
                 else return err;
-            } else if (n == 0) { 
-                return 0;
             } else if (n < b->sz) {
                 b->ptr += n;
                 b->sz -= n;
@@ -449,7 +464,7 @@ _send_buffer_tcp(struct net *self, struct socket *s) {
                 s->sbuffersz -= n;
                 break;
             }
-        }
+        } 
         s->head = b->next;
         free(b->begin);
         free(b);
@@ -461,13 +476,25 @@ int
 _send_buffer_ipc(struct net *self, struct socket *s) {
     while (s->head) {
         struct sbuffer *b = s->head;
-        int n = _sendmsg(s->fd, b->ptr, b->sz, b->fd);
-        if (n < 0) {
-            int err = _socket_geterror(s->fd);
-            if (err == SEAGAIN || err == SEINTR) return 0;
-            else return err;
-        } else {
-            s->sbuffersz -= n;
+        for (;;) {
+            int n = _sendfd(s->fd, b->ptr, b->sz, b->fd);
+            if (n < 0) {
+                int err = _socket_geterror(s->fd);
+                if (err == SEAGAIN) return 0;
+                else if (err == SEINTR) continue;
+                else return err;
+            } else if (n==0) {
+                return 0;
+            } else if (n<b->sz) {
+                b->fd   = -1; // the fd should be send
+                b->ptr += n;
+                b->sz  -= n;
+                s->sbuffersz -= n;
+                return 0;
+            } else {
+                s->sbuffersz -= n;
+                break;
+            }
         }
         s->head = b->next;
         free(b->begin);
@@ -531,7 +558,7 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
         struct sbuffer* p = malloc(sizeof(*p));
         p->next = NULL;
         p->sz = sz;
-        p->fd = 0;
+        p->fd = -1;
         p->begin = data;
         p->ptr = ptr;
         
@@ -547,7 +574,7 @@ socket_send(struct net* self, int id, void* data, int sz, struct socket_event* e
         struct sbuffer* p = malloc(sizeof(*p));
         p->next = NULL;
         p->sz = sz;
-        p->fd = 0;
+        p->fd = -1;
         p->begin = data;
         p->ptr = data;
         
@@ -568,50 +595,80 @@ errout:
 }
 
 int
-socket_sendmsg(struct net *self, int id, void *data, int size, int fd) {
-    assert(size > 0);
+socket_sendfd(struct net *self, int id, void *data, int sz, int cfd) {
+    assert(sz > 0 || (data == NULL && sz == 1)); // if data == NULL, then sz set 1
     struct socket *s = _socket(self, id);
     if (s == NULL) {
         free(data);
-        return -1;
+        return LS_ERR_NOSOCK;
     }
-    //fprintf(stderr, "sendmsg id=%d, size=%d, fd=%d, pro=%d\n", id, size, fd, s->protocol);
     if (s->protocol != LS_PROTOCOL_IPC) {
         free(data);
-        return -1;
+        return LS_ERR_STATUS;
     }
+    int err;
     if (s->head == NULL) {
-        int n = _sendmsg(s->fd, data, size, fd);
-        //fprintf(stderr, "sendmsg size=%d, fd=%d, n=%d %s\n", size, fd, n, strerror(errno));
-        if (n == -1) {
-            int err = _socket_geterror(s->fd);
-            if (err != SEAGAIN && err != SEINTR) {
-                // just simple, maybe EMSGSIZE (Message too long)
-                free(data);
-                _close_socket(self, s);
-                return err;
-            }
-        } else {
+        char *ptr;
+        int n = _sendfd(s->fd, data, sz, cfd);
+        fprintf(stderr, "socket_sendfd: fd=%d, n=%d, data=%p, sz=%d, cfd=%d\n", s->fd, n, data, sz, cfd);
+        if (n >= sz) {
+            fprintf(stderr, "send ok\n");
             free(data);
             return 0;
+        } else if (n>0) {
+            ptr = (char *)data + n;
+            sz -= n;
+            cfd = -1;
+        } else if (n==0) {
+            ptr = data;
+        } else {
+            ptr = data;
+            fprintf(stderr, "errno=%d, err=%s\n", errno, strerror(errno));
+            err = _socket_geterror(s->fd);
+            switch (err) {
+            case SEAGAIN: break;
+            case SEINTR: break;
+            default: goto errout;
+            }
         }
-    }
-    struct sbuffer *b = malloc(sizeof(*b));
-    b->next = NULL;
-    b->sz = size;
-    b->fd = fd;
-    b->begin = data;
-    b->ptr = data;
-   
-    if (s->head == NULL) {
-        s->head = s->tail = b;
+        s->sbuffersz += sz;
+        if (s->sbuffersz > s->slimit) {
+            err = LS_ERR_WBUFOVER;
+            goto errout;
+        }
+        struct sbuffer* p = malloc(sizeof(*p));
+        p->next = NULL;
+        p->sz = sz;
+        p->fd = cfd;
+        p->begin = data;
+        p->ptr = ptr;
+        
+        s->head = s->tail = p;
+        _subscribe(self, s, s->mask|NP_WABLE);
+        return 0;
     } else {
+        s->sbuffersz += sz;
+        if (s->sbuffersz > s->slimit) {
+            err = LS_ERR_WBUFOVER;
+            goto errout;
+        }
+        struct sbuffer* p = malloc(sizeof(*p));
+        p->next = NULL;
+        p->sz = sz;
+        p->fd = cfd;
+        p->begin = data;
+        p->ptr = data;
+        
         assert(s->tail != NULL);
         assert(s->tail->next == NULL);
-        s->tail->next = b;
-        s->tail = b;
+        s->tail->next = p;
+        s->tail = p;
+        return 0;
     }
-    return 0;
+errout:
+    free(data);
+    _close_socket(self, s);
+    return err;
 }
 
 int
@@ -640,7 +697,7 @@ _accept(struct net *self, struct socket *lis) {
     if (fd < 0) {
         return NULL;
     }
-    //_socket_keepalive(fd);
+    _socket_keepalive(fd);
     s = _create_socket(self, fd, lis->slimit, lis->udata, LS_PROTOCOL_TCP);
     if (s == NULL) {
         _socket_close(fd);
@@ -883,6 +940,7 @@ socket_poll(struct net *self, int timeout, struct socket_event **events) {
                 oe->id = s-self->sockets;
                 oe->udata = s->udata;
                 oe->type = LS_EREAD;
+                oe->err  = s->protocol;
                 oe++;
             }
             break;

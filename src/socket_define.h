@@ -16,7 +16,6 @@
 #define LS_EWRIDONECLOSE 5
 #define LS_ECONN_THEN_READ 6
 #define LS_EREAD0 7
-#define LS_EREADMSG 8
 
 struct socket_event {
     int id;
@@ -41,6 +40,7 @@ struct socket_event {
 #define LS_CONNECTING      -9
 #define LS_ERR_TRUNC       -10
 #define LS_ERR_CMSGTYPE    -11
+#define LS_ERR_STATUS      -12
 
 struct socket_addr {
     char ip[40];

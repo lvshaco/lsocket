@@ -247,28 +247,17 @@ recvmsg(struct lua_State *L,
     }
     struct buffer_node *node = sb->head;
     int size = node->sz;
-    if (size < 4) {
+    if (size != 1) {
         sb->head = node->next;
         free(node->p);
         free(node);
-        return luaL_error(L, "Invalid data format");
+        return luaL_error(L, "Invalid data format size=%d", size);
     }
-    char *p = node->p;
-    int fd = *(int*)p;
-    if (size == 4) {
-        lua_pushinteger(L, fd);
-        sb->head = node->next;
-        free(node->p);
-        free(node);
-        return 1;
-    } else {
-        lua_pushinteger(L, fd);
-        lua_pushlstring(L, p+4, size-4);
-        sb->head = node->next;
-        free(node->p);
-        free(node);
-        return 2;
-    }
+    sb->head = node->next;
+    free(node->p);
+    free(node);
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 static int
