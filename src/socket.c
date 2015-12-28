@@ -408,7 +408,7 @@ _readfd(struct net *self, struct socket *s, void **data) {
                 }
                 char *p = malloc(n+sizeof(int));
                 *(int *)p = *(int*)CMSG_DATA(&cmsg.cm);
-                memcpy(p+4, self->recvmsg_buffer, n);
+                memcpy(p+sizeof(int), self->recvmsg_buffer, n);
                 *data = p;
                 return n+sizeof(int);
             } else {
