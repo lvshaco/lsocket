@@ -152,8 +152,14 @@ _create_socket(struct net *self, socket_t fd, int slimit, int udata, int protoco
 static void
 _close_socket(struct net *self, struct socket *s) {
     if (s->fd < 0) return;
-    _subscribe(self, s, 0);
-    //if (s->status != STATUS_BIND) {
+
+    // don't do this, or in the issue, fork
+    // child close listen socket, then will
+    // delete read event from epoll_fd (
+    // parent and children has the same epoll_fd now)
+    //_subscribe(self, s, 0);
+
+    // eg bind stdin for async read data
     if (s->fd > STDERR_FILENO) {
         _socket_close(s->fd);
     }
