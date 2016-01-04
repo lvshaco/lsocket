@@ -22,9 +22,8 @@ static int np_poll(struct np_state* np, struct np_event* e, int max, int timeout
     
 #ifdef __linux__
 #include "np_epoll.h"
-//#endif
-
-//#ifdef WIN32
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined (__NetBSD__)
+#include "np_kqueue.h"
 #else
 #include "np_select.h"
 #endif
