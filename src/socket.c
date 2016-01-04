@@ -157,6 +157,8 @@ _close_socket(struct net *self, struct socket *s) {
     // child close listen socket, then will
     // delete read event from epoll_fd (
     // parent and children has the same epoll_fd now)
+    // note: epoll_create fd will inherited by a child created with fork, 
+    // but kqueue is not.
     //_subscribe(self, s, 0);
 
     // eg bind stdin for async read data
