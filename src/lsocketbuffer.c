@@ -239,28 +239,6 @@ readn(struct lua_State *L,
 }
 
 static int
-recvmsg(struct lua_State *L,
-        struct socket_buffer *sb) {
-    if (sb->head == NULL) {
-        lua_pushnil(L);
-        return 1;
-    }
-    struct buffer_node *node = sb->head;
-    int size = node->sz;
-    if (size != 1) {
-        sb->head = node->next;
-        free(node->p);
-        free(node);
-        return luaL_error(L, "Invalid data format size=%d", size);
-    }
-    sb->head = node->next;
-    free(node->p);
-    free(node);
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-static int
 lfindsep(struct lua_State *L) {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     struct socket_buffer *sb = lua_touserdata(L,1);
@@ -305,11 +283,8 @@ lpop(struct lua_State *L) {
             uint32_t n = luaL_checkinteger(L, 2);
             return readn(L, sb, n);
             } 
-        case LUA_TNIL:
-            return recvmsg(L, sb);
         default:
             return readall(L, sb);
-            //return luaL_argerror(L, 2, "invalid mode");
         }
     }
 }
@@ -342,7 +317,6 @@ ldetach(struct lua_State *L) {
     lua_pushinteger(L,buf_size);
     return 2;
 }
-
 //static void
 //pushpackp(struct lua_State *L, 
 //         struct socket_buffer *sb, int n,
